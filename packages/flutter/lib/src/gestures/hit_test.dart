@@ -8,6 +8,12 @@ import 'package:vector_math/vector_math_64.dart';
 
 import 'events.dart';
 
+export 'dart:ui' show Offset;
+
+export 'package:vector_math/vector_math_64.dart' show Matrix4;
+
+export 'events.dart' show PointerEvent;
+
 /// An object that can hit-test pointers.
 abstract class HitTestable {
   // This class is intended to be used as an interface, and should not be
@@ -209,7 +215,6 @@ class HitTestResult {
   ///    around this function for hit testing on [RenderBox]s.
   @protected
   void pushTransform(Matrix4 transform) {
-    assert(transform != null);
     assert(
       _debugVectorMoreOrLessEquals(transform.getRow(2), Vector4(0, 0, 1, 0)) &&
       _debugVectorMoreOrLessEquals(transform.getColumn(2), Vector4(0, 0, 1, 0)),
@@ -249,7 +254,6 @@ class HitTestResult {
   ///    around this function for hit testing on [RenderSliver]s.
   @protected
   void pushOffset(Offset offset) {
-    assert(offset != null);
     _localTransforms.add(_OffsetTransformPart(offset));
   }
 
@@ -268,10 +272,11 @@ class HitTestResult {
   ///    function pair in more details.
   @protected
   void popTransform() {
-    if (_localTransforms.isNotEmpty)
+    if (_localTransforms.isNotEmpty) {
       _localTransforms.removeLast();
-    else
+    } else {
       _transforms.removeLast();
+    }
     assert(_transforms.isNotEmpty);
   }
 

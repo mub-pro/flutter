@@ -116,7 +116,7 @@ void main() {
 }
 
 class BaselineDetector extends LeafRenderObjectWidget {
-  const BaselineDetector(this.callback, { Key? key }) : super(key: key);
+  const BaselineDetector(this.callback, { super.key });
 
   final VoidCallback callback;
 
@@ -151,8 +151,7 @@ class RenderBaselineDetector extends RenderBox {
 
   @override
   double computeDistanceToActualBaseline(TextBaseline baseline) {
-    if (callback != null)
-      callback();
+    callback();
     return 20.0;
   }
 

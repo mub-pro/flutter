@@ -5,6 +5,7 @@
 // This file is run as part of a reduced test set in CI on Mac and Windows
 // machines.
 @Tags(<String>['reduced-test-set'])
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -438,7 +439,7 @@ void main() {
         home: Scaffold(
           body: Builder(
             builder: (BuildContext context) {
-              width = MediaQuery.of(context).size.width;
+              width = MediaQuery.sizeOf(context).width;
               return CustomScrollView(
                 slivers: <Widget>[
                   SliverAppBar(
@@ -473,8 +474,8 @@ void main() {
       Rect.fromLTRB(
         0,
         height - titleFontSize - 10,
-        (width / 1.5).floorToDouble(),
-        height - 10,
+        (width / 1.5).floorToDouble() * 1.5,
+        height,
       ),
     );
   });
@@ -545,8 +546,8 @@ void main() {
       Rect.fromLTRB(
         0,
         height - titleFontSize - bottomMargin,
-        (collapsedWidth / 3).floorToDouble(),
-        height - bottomMargin,
+        (collapsedWidth / 3).floorToDouble() * 3,
+        height,
       ),
     );
   });

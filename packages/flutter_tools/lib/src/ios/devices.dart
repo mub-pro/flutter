@@ -8,6 +8,7 @@ import 'package:meta/meta.dart';
 import 'package:process/process.dart';
 import 'package:vm_service/vm_service.dart' as vm_service;
 
+import '../application_package.dart';
 import '../base/common.dart';
 import '../base/file_system.dart';
 import '../base/io.dart';
@@ -21,6 +22,7 @@ import '../device.dart';
 import '../device_port_forwarder.dart';
 import '../globals.dart' as globals;
 import '../macos/xcdevice.dart';
+import '../mdns_discovery.dart';
 import '../project.dart';
 import '../protocol_discovery.dart';
 import '../vmservice.dart';
@@ -133,7 +135,7 @@ class IOSDevices extends PollingDeviceDiscovery {
   Future<List<String>> getDiagnostics() async {
     if (!_platform.isMacOS) {
       return const <String>[
-        'Control of iOS devices or simulators only supported on macOS.'
+        'Control of iOS devices or simulators only supported on macOS.',
       ];
     }
 
@@ -145,7 +147,7 @@ class IOSDevices extends PollingDeviceDiscovery {
 }
 
 class IOSDevice extends Device {
-  IOSDevice(String id, {
+  IOSDevice(super.id, {
     required FileSystem fileSystem,
     required this.name,
     required this.cpuArchitecture,
@@ -165,7 +167,6 @@ class IOSDevice extends Device {
       _logger = logger,
       _platform = platform,
         super(
-          id,
           category: Category.mobile,
           platformType: PlatformType.ios,
           ephemeral: true,
@@ -189,15 +190,6 @@ class IOSDevice extends Device {
     final String? majorVersionString = _sdkVersion?.split('.').first.trim();
     return majorVersionString != null ? int.tryParse(majorVersionString) ?? 0 : 0;
   }
-
-  @override
-  bool get supportsHotReload => interfaceType == IOSDeviceConnectionInterface.usb;
-
-  @override
-  bool get supportsHotRestart => interfaceType == IOSDeviceConnectionInterface.usb;
-
-  @override
-  bool get supportsFlutterExit => interfaceType == IOSDeviceConnectionInterface.usb;
 
   @override
   final String name;
@@ -227,7 +219,7 @@ class IOSDevice extends Device {
 
   @override
   Future<bool> isAppInstalled(
-    IOSApp app, {
+    ApplicationPackage app, {
     String? userIdentifier,
   }) async {
     bool result;
@@ -244,11 +236,11 @@ class IOSDevice extends Device {
   }
 
   @override
-  Future<bool> isLatestBuildInstalled(IOSApp app) async => false;
+  Future<bool> isLatestBuildInstalled(ApplicationPackage app) async => false;
 
   @override
   Future<bool> installApp(
-    IOSApp app, {
+    covariant IOSApp app, {
     String? userIdentifier,
   }) async {
     final Directory bundle = _fileSystem.directory(app.deviceBundlePath);
@@ -282,7 +274,7 @@ class IOSDevice extends Device {
 
   @override
   Future<bool> uninstallApp(
-    IOSApp app, {
+    ApplicationPackage app, {
     String? userIdentifier,
   }) async {
     int uninstallationResult;
@@ -303,7 +295,8 @@ class IOSDevice extends Device {
   }
 
   @override
-  bool isSupported() => true;
+  // 32-bit devices are not supported.
+  bool isSupported() => cpuArchitecture == DarwinArch.arm64;
 
   @override
   Future<LaunchResult> startApp(
@@ -318,7 +311,11 @@ class IOSDevice extends Device {
     @visibleForTesting Duration? discoveryTimeout,
   }) async {
     String? packageId;
-
+    if (interfaceType == IOSDeviceConnectionInterface.network &&
+        debuggingOptions.debuggingEnabled &&
+        debuggingOptions.disablePortPublication) {
+      throwToolExit('Cannot start app on wirelessly tethered iOS device. Try running again with the --publish-port flag');
+    }
     if (!prebuiltApplication) {
       _logger.printTrace('Building ${package.name} for $id');
 
@@ -349,40 +346,21 @@ class IOSDevice extends Device {
     }
 
     // Step 3: Attempt to install the application on the device.
-    final String dartVmFlags = computeDartVmFlags(debuggingOptions);
-    final List<String> launchArguments = <String>[
-      '--enable-dart-profiling',
-      '--disable-service-auth-codes',
-      if (debuggingOptions.disablePortPublication) '--disable-observatory-publication',
-      if (debuggingOptions.startPaused) '--start-paused',
-      if (dartVmFlags.isNotEmpty) '--dart-flags="$dartVmFlags"',
-      if (debuggingOptions.useTestFonts) '--use-test-fonts',
-      if (debuggingOptions.debuggingEnabled) ...<String>[
-        '--enable-checked-mode',
-        '--verify-entry-points',
-      ],
-      if (debuggingOptions.enableSoftwareRendering) '--enable-software-rendering',
-      if (debuggingOptions.skiaDeterministicRendering) '--skia-deterministic-rendering',
-      if (debuggingOptions.traceSkia) '--trace-skia',
-      if (debuggingOptions.traceAllowlist != null) '--trace-allowlist="${debuggingOptions.traceAllowlist}"',
-      if (debuggingOptions.traceSkiaAllowlist != null) '--trace-skia-allowlist="${debuggingOptions.traceSkiaAllowlist}"',
-      if (debuggingOptions.endlessTraceBuffer) '--endless-trace-buffer',
-      if (debuggingOptions.dumpSkpOnShaderCompilation) '--dump-skp-on-shader-compilation',
-      if (debuggingOptions.verboseSystemLogs) '--verbose-logging',
-      if (debuggingOptions.cacheSkSL) '--cache-sksl',
-      if (debuggingOptions.purgePersistentCache) '--purge-persistent-cache',
-      if (route != null) '--route=$route',
-      if (platformArgs['trace-startup'] as bool? ?? false) '--trace-startup',
-    ];
-
-    final Status installStatus = _logger.startProgress(
+    final List<String> launchArguments = debuggingOptions.getIOSLaunchArguments(
+      EnvironmentType.physical,
+      route,
+      platformArgs,
+      ipv6: ipv6,
+      interfaceType: interfaceType,
+    );
+    Status startAppStatus = _logger.startProgress(
       'Installing and launching...',
     );
     try {
-      ProtocolDiscovery? observatoryDiscovery;
+      ProtocolDiscovery? vmServiceDiscovery;
       int installationResult = 1;
       if (debuggingOptions.debuggingEnabled) {
-        _logger.printTrace('Debugging is enabled, connecting to observatory');
+        _logger.printTrace('Debugging is enabled, connecting to vmService');
         final DeviceLogReader deviceLogReader = getLogReader(app: package);
 
         // If the device supports syslog reading, prefer launching the app without
@@ -394,14 +372,16 @@ class IOSDevice extends Device {
             appDeltaDirectory: package.appDeltaDirectory,
             launchArguments: launchArguments,
             interfaceType: interfaceType,
+            uninstallFirst: debuggingOptions.uninstallFirst,
           );
           if (deviceLogReader is IOSDeviceLogReader) {
             deviceLogReader.debuggerStream = iosDeployDebugger;
           }
         }
-        observatoryDiscovery = ProtocolDiscovery.observatory(
+        // Don't port foward if debugging with a network device.
+        vmServiceDiscovery = ProtocolDiscovery.vmService(
           deviceLogReader,
-          portForwarder: portForwarder,
+          portForwarder: interfaceType == IOSDeviceConnectionInterface.network ? null : portForwarder,
           hostPort: debuggingOptions.hostVmServicePort,
           devicePort: debuggingOptions.deviceVmServicePort,
           ipv6: ipv6,
@@ -415,6 +395,7 @@ class IOSDevice extends Device {
           appDeltaDirectory: package.appDeltaDirectory,
           launchArguments: launchArguments,
           interfaceType: interfaceType,
+          uninstallFirst: debuggingOptions.uninstallFirst,
         );
       } else {
         installationResult = await iosDeployDebugger!.launchAndAttach() ? 0 : 1;
@@ -431,29 +412,77 @@ class IOSDevice extends Device {
         return LaunchResult.succeeded();
       }
 
-      _logger.printTrace('Application launched on the device. Waiting for observatory url.');
-      final Timer timer = Timer(discoveryTimeout ?? const Duration(seconds: 30), () {
-        _logger.printError('iOS Observatory not discovered after 30 seconds. This is taking much longer than expected...');
+      _logger.printTrace('Application launched on the device. Waiting for Dart VM Service url.');
+
+      final int defaultTimeout = interfaceType == IOSDeviceConnectionInterface.network ? 45 : 30;
+      final Timer timer = Timer(discoveryTimeout ?? Duration(seconds: defaultTimeout), () {
+        _logger.printError('The Dart VM Service was not discovered after $defaultTimeout seconds. This is taking much longer than expected...');
+
+        // If debugging with a wireless device and the timeout is reached, remind the
+        // user to allow local network permissions.
+        if (interfaceType == IOSDeviceConnectionInterface.network) {
+          _logger.printError(
+            '\nClick "Allow" to the prompt asking if you would like to find and connect devices on your local network. '
+            'This is required for wireless debugging. If you selected "Don\'t Allow", '
+            'you can turn it on in Settings > Your App Name > Local Network. '
+            "If you don't see your app in the Settings, uninstall the app and rerun to see the prompt again."
+          );
+        } else {
+          iosDeployDebugger?.pauseDumpBacktraceResume();
+        }
       });
-      final Uri? localUri = await observatoryDiscovery?.uri;
+
+      Uri? localUri;
+      if (interfaceType == IOSDeviceConnectionInterface.network) {
+        // Wait for Dart VM Service to start up.
+        final Uri? serviceURL = await vmServiceDiscovery?.uri;
+        if (serviceURL == null) {
+          await iosDeployDebugger?.stopAndDumpBacktrace();
+          return LaunchResult.failed();
+        }
+
+        // If Dart VM Service URL with the device IP is not found within 5 seconds,
+        // change the status message to prompt users to click Allow. Wait 5 seconds because it
+        // should only show this message if they have not already approved the permissions.
+        // MDnsVmServiceDiscovery usually takes less than 5 seconds to find it.
+        final Timer mDNSLookupTimer = Timer(const Duration(seconds: 5), () {
+          startAppStatus.stop();
+          startAppStatus = _logger.startProgress(
+            'Waiting for approval of local network permissions...',
+          );
+        });
+
+        // Get Dart VM Service URL with the device IP as the host.
+        localUri = await MDnsVmServiceDiscovery.instance!.getVMServiceUriForLaunch(
+          packageId,
+          this,
+          usesIpv6: ipv6,
+          deviceVmservicePort: serviceURL.port,
+          isNetworkDevice: true,
+        );
+
+        mDNSLookupTimer.cancel();
+      } else {
+        localUri = await vmServiceDiscovery?.uri;
+      }
       timer.cancel();
       if (localUri == null) {
         await iosDeployDebugger?.stopAndDumpBacktrace();
         return LaunchResult.failed();
       }
-      return LaunchResult.succeeded(observatoryUri: localUri);
+      return LaunchResult.succeeded(vmServiceUri: localUri);
     } on ProcessException catch (e) {
       await iosDeployDebugger?.stopAndDumpBacktrace();
       _logger.printError(e.message);
       return LaunchResult.failed();
     } finally {
-      installStatus.stop();
+      startAppStatus.stop();
     }
   }
 
   @override
   Future<bool> stopApp(
-    IOSApp app, {
+    ApplicationPackage? app, {
     String? userIdentifier,
   }) async {
     // If the debugger is not attached, killing the ios-deploy process won't stop the app.
@@ -472,7 +501,7 @@ class IOSDevice extends Device {
 
   @override
   DeviceLogReader getLogReader({
-    IOSApp? app,
+    covariant IOSApp? app,
     bool includePastLogs = false,
   }) {
     assert(!includePastLogs, 'Past log reading not supported on iOS devices.');
@@ -587,7 +616,6 @@ String decodeSyslog(String line) {
   }
 }
 
-@visibleForTesting
 class IOSDeviceLogReader extends DeviceLogReader {
   IOSDeviceLogReader._(
     this._iMobileDevice,
@@ -700,7 +728,7 @@ class IOSDeviceLogReader extends DeviceLogReader {
 
     void logMessage(vm_service.Event event) {
       if (_iosDeployDebugger != null && _iosDeployDebugger!.debuggerAttached) {
-        // Prefer the more complete logs from the  attached debugger.
+        // Prefer the more complete logs from the attached debugger.
         return;
       }
       final String message = processVmServiceMessage(event);

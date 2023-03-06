@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:typed_data' show ByteData;
 import 'dart:ui' as ui hide window;
 
 import 'package:flutter/foundation.dart';
@@ -99,11 +98,11 @@ class TestWindow implements ui.SingletonFlutterWindow {
   }
 
   @override
-  ui.WindowPadding get viewInsets => _viewInsetsTestValue ??  _window.viewInsets;
-  ui.WindowPadding? _viewInsetsTestValue;
+  ui.ViewPadding get viewInsets => _viewInsetsTestValue ??  _window.viewInsets;
+  ui.ViewPadding? _viewInsetsTestValue;
   /// Hides the real view insets and reports the given [viewInsetsTestValue]
   /// instead.
-  set viewInsetsTestValue(ui.WindowPadding viewInsetsTestValue) { // ignore: avoid_setters_without_getters
+  set viewInsetsTestValue(ui.ViewPadding viewInsetsTestValue) { // ignore: avoid_setters_without_getters
     _viewInsetsTestValue = viewInsetsTestValue;
     onMetricsChanged?.call();
   }
@@ -115,11 +114,11 @@ class TestWindow implements ui.SingletonFlutterWindow {
   }
 
   @override
-  ui.WindowPadding get viewPadding => _viewPaddingTestValue ?? _window.padding;
-  ui.WindowPadding? _viewPaddingTestValue;
+  ui.ViewPadding get viewPadding => _viewPaddingTestValue ?? _window.padding;
+  ui.ViewPadding? _viewPaddingTestValue;
   /// Hides the real view padding and reports the given [paddingTestValue]
   /// instead.
-  set viewPaddingTestValue(ui.WindowPadding viewPaddingTestValue) { // ignore: avoid_setters_without_getters
+  set viewPaddingTestValue(ui.ViewPadding viewPaddingTestValue) { // ignore: avoid_setters_without_getters
     _viewPaddingTestValue = viewPaddingTestValue;
     onMetricsChanged?.call();
   }
@@ -131,16 +130,30 @@ class TestWindow implements ui.SingletonFlutterWindow {
   }
 
   @override
-  ui.WindowPadding get padding => _paddingTestValue ?? _window.padding;
-  ui.WindowPadding? _paddingTestValue;
+  ui.ViewPadding get padding => _paddingTestValue ?? _window.padding;
+  ui.ViewPadding? _paddingTestValue;
   /// Hides the real padding and reports the given [paddingTestValue] instead.
-  set paddingTestValue(ui.WindowPadding paddingTestValue) { // ignore: avoid_setters_without_getters
+  set paddingTestValue(ui.ViewPadding paddingTestValue) { // ignore: avoid_setters_without_getters
     _paddingTestValue = paddingTestValue;
     onMetricsChanged?.call();
   }
   /// Deletes any existing test padding and returns to using the real padding.
   void clearPaddingTestValue() {
     _paddingTestValue = null;
+    onMetricsChanged?.call();
+  }
+
+  @override
+  ui.GestureSettings get gestureSettings => _gestureSettings ?? _window.gestureSettings;
+  ui.GestureSettings? _gestureSettings;
+  /// Hides the real gesture settings and reports the given [gestureSettingsTestValue] instead.
+  set gestureSettingsTestValue(ui.GestureSettings gestureSettingsTestValue) { // ignore: avoid_setters_without_getters
+    _gestureSettings = gestureSettingsTestValue;
+    onMetricsChanged?.call();
+  }
+  /// Deletes any existing test gesture settings and returns to using the real gesture settings.
+  void clearGestureSettingsTestValue() {
+    _gestureSettings = null;
     onMetricsChanged?.call();
   }
 
@@ -159,10 +172,10 @@ class TestWindow implements ui.SingletonFlutterWindow {
   }
 
   @override
-  ui.WindowPadding get systemGestureInsets => _systemGestureInsetsTestValue ?? _window.systemGestureInsets;
-  ui.WindowPadding? _systemGestureInsetsTestValue;
+  ui.ViewPadding get systemGestureInsets => _systemGestureInsetsTestValue ?? _window.systemGestureInsets;
+  ui.ViewPadding? _systemGestureInsetsTestValue;
   /// Hides the real system gesture insets and reports the given [systemGestureInsetsTestValue] instead.
-  set systemGestureInsetsTestValue(ui.WindowPadding systemGestureInsetsTestValue) { // ignore: avoid_setters_without_getters
+  set systemGestureInsetsTestValue(ui.ViewPadding systemGestureInsetsTestValue) { // ignore: avoid_setters_without_getters
     _systemGestureInsetsTestValue = systemGestureInsetsTestValue;
     onMetricsChanged?.call();
   }
@@ -312,6 +325,12 @@ class TestWindow implements ui.SingletonFlutterWindow {
   }
 
   @override
+  bool get nativeSpellCheckServiceDefined => platformDispatcher.nativeSpellCheckServiceDefined;
+  set nativeSpellCheckServiceDefinedTestValue(bool nativeSpellCheckServiceDefinedTestValue) { // ignore: avoid_setters_without_getters
+    platformDispatcher.nativeSpellCheckServiceDefinedTestValue = nativeSpellCheckServiceDefinedTestValue;
+  }
+
+  @override
   bool get brieflyShowPassword => platformDispatcher.brieflyShowPassword;
   /// Hides the real [brieflyShowPassword] and reports the given
   /// `brieflyShowPasswordTestValue` instead.
@@ -442,16 +461,6 @@ class TestWindow implements ui.SingletonFlutterWindow {
   }
 
   @override
-  ui.ViewConfiguration get viewConfiguration => _viewConfiguration ?? _window.viewConfiguration;
-  ui.ViewConfiguration? _viewConfiguration;
-
-  /// Hide the real view configuration and report the provided [value] instead.
-  set viewConfigurationTestValue(ui.ViewConfiguration? value) { // ignore: avoid_setters_without_getters
-    _viewConfiguration = value;
-    onMetricsChanged?.call();
-  }
-
-  @override
   ui.VoidCallback? get onAccessibilityFeaturesChanged => platformDispatcher.onAccessibilityFeaturesChanged;
   @override
   set onAccessibilityFeaturesChanged(ui.VoidCallback? callback) {
@@ -460,7 +469,7 @@ class TestWindow implements ui.SingletonFlutterWindow {
 
   @override
   void updateSemantics(ui.SemanticsUpdate update) {
-    platformDispatcher.updateSemantics(update);
+    _window.updateSemantics(update);
   }
 
   @override
@@ -503,6 +512,7 @@ class TestWindow implements ui.SingletonFlutterWindow {
   void clearAllTestValues() {
     clearDevicePixelRatioTestValue();
     clearPaddingTestValue();
+    clearGestureSettingsTestValue();
     clearDisplayFeaturesTestValue();
     clearPhysicalSizeTestValue();
     clearViewInsetsTestValue();
@@ -569,8 +579,9 @@ class FakeAccessibilityFeatures implements ui.AccessibilityFeatures {
 
   @override
   bool operator ==(Object other) {
-    if (other.runtimeType != runtimeType)
+    if (other.runtimeType != runtimeType) {
       return false;
+    }
     return other is FakeAccessibilityFeatures
         && other.accessibleNavigation == accessibleNavigation
         && other.invertColors == invertColors
@@ -722,6 +733,18 @@ class TestPlatformDispatcher implements ui.PlatformDispatcher {
   }
 
   @override
+  bool get nativeSpellCheckServiceDefined => _nativeSpellCheckServiceDefinedTestValue ?? _platformDispatcher.nativeSpellCheckServiceDefined;
+  bool? _nativeSpellCheckServiceDefinedTestValue;
+  set nativeSpellCheckServiceDefinedTestValue(bool nativeSpellCheckServiceDefinedTestValue) { // ignore: avoid_setters_without_getters
+    _nativeSpellCheckServiceDefinedTestValue = nativeSpellCheckServiceDefinedTestValue;
+  }
+  /// Deletes existing value that determines whether or not a native spell check
+  /// service is defined and returns to the real value.
+  void clearNativeSpellCheckServiceDefined() {
+    _nativeSpellCheckServiceDefinedTestValue = null;
+  }
+
+  @override
   bool get brieflyShowPassword => _brieflyShowPasswordTestValue ?? _platformDispatcher.brieflyShowPassword;
   bool? _brieflyShowPasswordTestValue;
   /// Hides the real [brieflyShowPassword] and reports the given
@@ -834,11 +857,6 @@ class TestPlatformDispatcher implements ui.PlatformDispatcher {
   }
 
   @override
-  void updateSemantics(ui.SemanticsUpdate update) {
-    _platformDispatcher.updateSemantics(update);
-  }
-
-  @override
   void setIsolateDebugName(String name) {
     _platformDispatcher.setIsolateDebugName(name);
   }
@@ -882,6 +900,7 @@ class TestPlatformDispatcher implements ui.PlatformDispatcher {
     clearLocalesTestValue();
     clearSemanticsEnabledTestValue();
     clearTextScaleFactorTestValue();
+    clearNativeSpellCheckServiceDefined();
   }
 
   @override
@@ -909,9 +928,6 @@ class TestPlatformDispatcher implements ui.PlatformDispatcher {
 
   @override
   ui.Locale? computePlatformResolvedLocale(List<ui.Locale> supportedLocales) => _platformDispatcher.computePlatformResolvedLocale(supportedLocales);
-
-  @override
-  ui.PlatformConfiguration get configuration => _platformDispatcher.configuration;
 
   @override
   ui.FrameData get frameData => _platformDispatcher.frameData;

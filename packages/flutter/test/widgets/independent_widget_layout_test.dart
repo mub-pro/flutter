@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 const Size _kTestViewSize = Size(800.0, 600.0);
 
 class ScheduledFrameTrackingWindow extends TestWindow {
-  ScheduledFrameTrackingWindow() : super(window: ui.window);
+  ScheduledFrameTrackingWindow({ required super.window });
 
   int _scheduledFrameCount = 0;
   int get scheduledFrameCount => _scheduledFrameCount;
@@ -28,7 +26,7 @@ class ScheduledFrameTrackingWindow extends TestWindow {
 }
 
 class ScheduledFrameTrackingBindings extends AutomatedTestWidgetsFlutterBinding {
-  final ScheduledFrameTrackingWindow _window = ScheduledFrameTrackingWindow();
+  late final ScheduledFrameTrackingWindow _window = ScheduledFrameTrackingWindow(window: super.window);
 
   @override
   ScheduledFrameTrackingWindow get window => _window;
@@ -92,10 +90,10 @@ class Trigger {
 
 class TriggerableWidget extends StatefulWidget {
   const TriggerableWidget({
-    Key? key,
+    super.key,
     required this.trigger,
     required this.counter,
-  }) : super(key: key);
+  });
 
   final Trigger trigger;
   final Counter counter;
@@ -133,10 +131,10 @@ class TriggerableState extends State<TriggerableWidget> {
 
 class TestFocusable extends StatefulWidget {
   const TestFocusable({
-    Key? key,
+    super.key,
     required this.focusNode,
     this.autofocus = true,
-  }) : super(key: key);
+  });
 
   final bool autofocus;
   final FocusNode focusNode;
@@ -269,7 +267,7 @@ enum WidgetState {
 }
 
 class TestStates extends StatefulWidget {
-  const TestStates({Key? key, required this.states}) : super(key: key);
+  const TestStates({super.key, required this.states});
 
   final List<WidgetState> states;
 

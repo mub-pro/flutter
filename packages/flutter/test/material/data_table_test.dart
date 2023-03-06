@@ -3,6 +3,8 @@
 // found in the LICENSE file.
 
 @TestOn('!chrome')
+library;
+
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -627,14 +629,16 @@ void main() {
     Widget buildCustomTable({
       int? sortColumnIndex,
       bool sortAscending = true,
-      double dataRowHeight = 48.0,
+      double? dataRowMinHeight,
+      double? dataRowMaxHeight,
       double headingRowHeight = 56.0,
     }) {
       return DataTable(
         sortColumnIndex: sortColumnIndex,
         sortAscending: sortAscending,
         onSelectAll: (bool? value) {},
-        dataRowHeight: dataRowHeight,
+        dataRowMinHeight: dataRowMinHeight,
+        dataRowMaxHeight: dataRowMaxHeight,
         headingRowHeight: headingRowHeight,
         columns: <DataColumn>[
           const DataColumn(
@@ -710,7 +714,7 @@ void main() {
     Finder findFirstContainerFor(String text) => find.widgetWithText(Container, text).first;
 
     expect(tester.getSize(findFirstContainerFor('Name')).height, 56.0);
-    expect(tester.getSize(findFirstContainerFor('Frozen yogurt')).height, 48.0);
+    expect(tester.getSize(findFirstContainerFor('Frozen yogurt')).height, kMinInteractiveDimension);
 
     // CUSTOM VALUES
     await tester.pumpWidget(MaterialApp(
@@ -724,14 +728,105 @@ void main() {
     expect(tester.getSize(findFirstContainerFor('Name')).height, 64.0);
 
     await tester.pumpWidget(MaterialApp(
-      home: Material(child: buildCustomTable(dataRowHeight: 30.0)),
+      home: Material(child: buildCustomTable(dataRowMinHeight: 30.0, dataRowMaxHeight: 30.0)),
     ));
     expect(tester.getSize(findFirstContainerFor('Frozen yogurt')).height, 30.0);
 
     await tester.pumpWidget(MaterialApp(
-      home: Material(child: buildCustomTable(dataRowHeight: 56.0)),
+      home: Material(child: buildCustomTable(dataRowMinHeight: 0.0, dataRowMaxHeight: double.infinity)),
     ));
-    expect(tester.getSize(findFirstContainerFor('Frozen yogurt')).height, 56.0);
+    expect(tester.getSize(findFirstContainerFor('Frozen yogurt')).height, greaterThan(0.0));
+  });
+
+  testWidgets('DataTable custom row height one row taller than others', (WidgetTester tester) async {
+    const String multilineText = 'Line one.\nLine two.\nLine three.\nLine four.';
+
+    Widget buildCustomTable({
+      double? dataRowMinHeight,
+      double? dataRowMaxHeight,
+    }) {
+      return DataTable(
+        dataRowMinHeight: dataRowMinHeight,
+        dataRowMaxHeight: dataRowMaxHeight,
+        columns: const <DataColumn>[
+          DataColumn(
+            label: Text('SingleRowColumn'),
+          ),
+          DataColumn(
+            label: Text('MultiRowColumn'),
+          ),
+        ],
+        rows: const <DataRow>[
+          DataRow(cells: <DataCell>[
+            DataCell(Text('Data')),
+            DataCell(Column(children: <Widget>[
+                  Text(multilineText),
+                ])),
+          ]),
+        ],
+      );
+    }
+
+    Finder findFirstContainerFor(String text) => find.widgetWithText(Container, text).first;
+
+    await tester.pumpWidget(MaterialApp(
+      home: Material(child: buildCustomTable(dataRowMinHeight: 0.0, dataRowMaxHeight: double.infinity)),
+    ));
+
+    final double singleLineRowHeight = tester.getSize(findFirstContainerFor('Data')).height;
+    final double multilineRowHeight = tester.getSize(findFirstContainerFor(multilineText)).height;
+
+    expect(multilineRowHeight, greaterThan(singleLineRowHeight));
+  });
+
+  testWidgets('DataTable custom row height - separate test for deprecated dataRowHeight', (WidgetTester tester) async {
+    Widget buildCustomTable({
+      double dataRowHeight = 48.0,
+    }) {
+      return DataTable(
+        onSelectAll: (bool? value) {},
+        dataRowHeight: dataRowHeight,
+        columns: <DataColumn>[
+          const DataColumn(
+            label: Text('Name'),
+            tooltip: 'Name',
+          ),
+          DataColumn(
+            label: const Text('Calories'),
+            tooltip: 'Calories',
+            numeric: true,
+            onSort: (int columnIndex, bool ascending) {},
+          ),
+        ],
+        rows: kDesserts.map<DataRow>((Dessert dessert) {
+          return DataRow(
+            key: ValueKey<String>(dessert.name),
+            onSelectChanged: (bool? selected) {},
+            cells: <DataCell>[
+              DataCell(
+                Text(dessert.name),
+              ),
+              DataCell(
+                Text('${dessert.calories}'),
+                showEditIcon: true,
+                onTap: () {},
+              ),
+            ],
+          );
+        }).toList(),
+      );
+    }
+
+    // The finder matches with the Container of the cell content, as well as the
+    // Container wrapping the whole table. The first one is used to test row
+    // heights.
+    Finder findFirstContainerFor(String text) => find.widgetWithText(Container, text).first;
+
+    // CUSTOM VALUES
+    await tester.pumpWidget(MaterialApp(
+      home: Material(child: buildCustomTable(dataRowHeight: 30.0)),
+    ));
+    expect(tester.getSize(findFirstContainerFor('Frozen yogurt')).height, 30.0);
   });
 
   testWidgets('DataTable custom horizontal padding - checkbox', (WidgetTester tester) async {
@@ -1354,7 +1449,6 @@ void main() {
 
     final TestGesture gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: Offset.zero);
-    addTearDown(gesture.removePointer);
 
     await tester.pumpAndSettle();
     expect(tester.renderObject(find.text('column1')).attached, true);
@@ -1412,9 +1506,9 @@ void main() {
     const Color checkColor = Color(0xFF0000FF);
 
     final ThemeData themeData = ThemeData(
-      checkboxTheme: CheckboxThemeData(
-        fillColor: MaterialStateProperty.all(fillColor),
-        checkColor: MaterialStateProperty.all(checkColor),
+      checkboxTheme: const CheckboxThemeData(
+        fillColor: MaterialStatePropertyAll<Color?>(fillColor),
+        checkColor: MaterialStatePropertyAll<Color?>(checkColor),
       ),
     );
     Widget buildTable() {
@@ -1469,8 +1563,9 @@ void main() {
               selected: selected,
               color: MaterialStateProperty.resolveWith<Color>(
                     (Set<MaterialState> states) {
-                  if (states.contains(MaterialState.selected))
+                  if (states.contains(MaterialState.selected)) {
                     return selectedColor;
+                  }
                   return defaultColor;
                 },
               ),
@@ -1522,8 +1617,9 @@ void main() {
             DataRow(
               color: MaterialStateProperty.resolveWith<Color>(
                     (Set<MaterialState> states) {
-                  if (states.contains(MaterialState.disabled))
+                  if (states.contains(MaterialState.disabled)) {
                     return disabledColor;
+                  }
                   return defaultColor;
                 },
               ),
@@ -1567,8 +1663,9 @@ void main() {
           DataRow(
             color: MaterialStateProperty.resolveWith<Color>(
               (Set<MaterialState> states) {
-                if (states.contains(MaterialState.pressed))
+                if (states.contains(MaterialState.pressed)) {
                   return pressedColor;
+                }
                 return Colors.transparent;
               },
             ),
@@ -1587,7 +1684,7 @@ void main() {
 
     final TestGesture gesture = await tester.startGesture(tester.getCenter(find.text('Content1')));
     await tester.pump(const Duration(milliseconds: 200)); // splash is well underway
-    final RenderBox box = Material.of(tester.element(find.byType(InkWell)))! as RenderBox;
+    final RenderBox box = Material.of(tester.element(find.byType(InkWell)))as RenderBox;
     expect(box, paints..circle(x: 68.0, y: 24.0, color: pressedColor));
     await gesture.up();
   });
@@ -1854,5 +1951,125 @@ void main() {
     tableBorder = table.border;
     expect(tableBorder?.bottom.width, null);
     expect(tableBorder?.top.color, null);
+  });
+
+  // Regression test for https://github.com/flutter/flutter/issues/100952
+  testWidgets('Do not crashes when paint borders in a narrow space', (WidgetTester tester) async {
+    const List<DataColumn> columns = <DataColumn>[
+      DataColumn(label: Text('column1')),
+      DataColumn(label: Text('column2')),
+    ];
+
+    const List<DataCell> cells = <DataCell>[
+      DataCell(Text('cell1')),
+      DataCell(Text('cell2')),
+    ];
+
+    const List<DataRow> rows = <DataRow>[
+      DataRow(cells: cells),
+      DataRow(cells: cells),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: Center(
+            child: SizedBox(
+              width: 117.0,
+              child: DataTable(
+                border: TableBorder.all(width: 2, color: Colors.red),
+                columns: columns,
+                rows: rows,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // Go without crashes.
+
+  });
+
+  testWidgets('DataTable clip behavior', (WidgetTester tester) async {
+    const Color selectedColor = Colors.green;
+    const Color defaultColor = Colors.red;
+    const BorderRadius borderRadius = BorderRadius.all(Radius.circular(30));
+
+    Widget buildTable({bool selected = false, required Clip clipBehavior}) {
+      return Material(
+        child: DataTable(
+          clipBehavior: clipBehavior,
+          border: TableBorder.all(borderRadius: borderRadius),
+          columns: const <DataColumn>[
+            DataColumn(
+              label: Text('Column1'),
+            ),
+          ],
+          rows: <DataRow>[
+            DataRow(
+              selected: selected,
+              color: MaterialStateProperty.resolveWith<Color>(
+                    (Set<MaterialState> states) {
+                  if (states.contains(MaterialState.selected)) {
+                    return selectedColor;
+                  }
+                  return defaultColor;
+                },
+              ),
+              cells: const <DataCell>[
+                DataCell(Text('Content1')),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Test default clip behavior.
+    await tester.pumpWidget(MaterialApp(home: buildTable(clipBehavior: Clip.none)));
+
+    Material material = tester.widget<Material>(find.byType(Material).last);
+    expect(material.clipBehavior, Clip.none);
+    expect(material.borderRadius, borderRadius);
+
+    await tester.pumpWidget(MaterialApp(home: buildTable(clipBehavior: Clip.hardEdge)));
+
+    material = tester.widget<Material>(find.byType(Material).last);
+    expect(material.clipBehavior, Clip.hardEdge);
+    expect(material.borderRadius, borderRadius);
+  });
+
+  testWidgets('DataTable dataRowMinHeight smaller or equal dataRowMaxHeight validation', (WidgetTester tester) async {
+    DataTable createDataTable() =>
+      DataTable(
+        columns: const <DataColumn>[DataColumn(label: Text('Column1'))],
+        rows: const <DataRow>[],
+        dataRowMinHeight: 2.0,
+        dataRowMaxHeight: 1.0,
+      );
+
+    expect(() => createDataTable(), throwsA(predicate((AssertionError e) =>
+      e.toString().contains('dataRowMaxHeight >= dataRowMinHeight'))));
+  });
+
+  testWidgets('DataTable dataRowHeight is not used together with dataRowMinHeight or dataRowMaxHeight', (WidgetTester tester) async {
+    DataTable createDataTable({double? dataRowHeight, double? dataRowMinHeight, double? dataRowMaxHeight}) =>
+      DataTable(
+        columns: const <DataColumn>[DataColumn(label: Text('Column1'))],
+        rows: const <DataRow>[],
+        dataRowHeight: dataRowHeight,
+        dataRowMinHeight: dataRowMinHeight,
+        dataRowMaxHeight: dataRowMaxHeight,
+      );
+
+    expect(() => createDataTable(dataRowHeight: 1.0, dataRowMinHeight: 2.0, dataRowMaxHeight: 2.0), throwsA(predicate((AssertionError e) =>
+      e.toString().contains('dataRowHeight == null || (dataRowMinHeight == null && dataRowMaxHeight == null)'))));
+
+    expect(() => createDataTable(dataRowHeight: 1.0, dataRowMaxHeight: 2.0), throwsA(predicate((AssertionError e) =>
+      e.toString().contains('dataRowHeight == null || (dataRowMinHeight == null && dataRowMaxHeight == null)'))));
+
+    expect(() => createDataTable(dataRowHeight: 1.0, dataRowMinHeight: 2.0), throwsA(predicate((AssertionError e) =>
+      e.toString().contains('dataRowHeight == null || (dataRowMinHeight == null && dataRowMaxHeight == null)'))));
   });
 }

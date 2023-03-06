@@ -2,30 +2,25 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flutter code sample for RefreshIndicator
+// Flutter code sample for [RefreshIndicator].
 
 import 'package:flutter/material.dart';
 
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
-  static const String _title = 'RefreshIndicator Sample';
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      title: _title,
-      home: RefreshIndicatorExample(title: _title),
+      home: RefreshIndicatorExample(),
     );
   }
 }
 
 class RefreshIndicatorExample extends StatefulWidget {
-  const RefreshIndicatorExample({Key? key, required this.title}) : super(key: key);
-
-  final String title;
+  const RefreshIndicatorExample({super.key});
 
   @override
   State<RefreshIndicatorExample> createState() => _RefreshIndicatorExampleState();
@@ -39,7 +34,7 @@ class _RefreshIndicatorExampleState extends State<RefreshIndicatorExample> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        title: const Text('RefreshIndicator Sample'),
       ),
       body: RefreshIndicator(
         key: _refreshIndicatorKey,
@@ -48,7 +43,7 @@ class _RefreshIndicatorExampleState extends State<RefreshIndicatorExample> {
         strokeWidth: 4.0,
         onRefresh: () async {
           // Replace this delay with the code to be executed during refresh
-          // and return a Future when code finishs execution.
+          // and return a Future when code finishes execution.
           return Future<void>.delayed(const Duration(seconds: 3));
         },
         // Pull from top to show refresh indicator.

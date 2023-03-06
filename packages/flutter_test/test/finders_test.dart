@@ -275,7 +275,7 @@ void main() {
       await tester.pumpWidget(_boilerplate(
         Semantics(
           container: true,
-          child: Row(children: const <Widget>[
+          child: const Row(children: <Widget>[
             Text('Hello'),
             Text('World'),
           ]),
@@ -359,14 +359,14 @@ void main() {
   testWidgets('finds multiple subtypes', (WidgetTester tester) async {
     await tester.pumpWidget(_boilerplate(
       Row(children: <Widget>[
-        Column(children: const <Widget>[
+        const Column(children: <Widget>[
           Text('Hello'),
           Text('World'),
         ]),
         Column(children: <Widget>[
           Image(image: FileImage(File('test'))),
         ]),
-        Column(children: const <Widget>[
+        const Column(children: <Widget>[
           SimpleGenericWidget<int>(child: Text('one')),
           SimpleGenericWidget<double>(child: Text('pi')),
           SimpleGenericWidget<String>(child: Text('two')),
@@ -399,7 +399,7 @@ Widget _boilerplate(Widget child) {
 }
 
 class SimpleCustomSemanticsWidget extends LeafRenderObjectWidget {
-  const SimpleCustomSemanticsWidget(this.label, {Key? key}) : super(key: key);
+  const SimpleCustomSemanticsWidget(this.label, {super.key});
 
   final String label;
 
@@ -431,9 +431,8 @@ class SimpleCustomSemanticsRenderObject extends RenderBox {
 }
 
 class SimpleGenericWidget<T> extends StatelessWidget {
-  const SimpleGenericWidget({required Widget child, Key? key})
-      : _child = child,
-        super(key: key);
+  const SimpleGenericWidget({required Widget child, super.key})
+      : _child = child;
 
   final Widget _child;
 
